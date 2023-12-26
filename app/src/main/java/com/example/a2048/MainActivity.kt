@@ -1,7 +1,6 @@
 package com.example.a2048
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -9,11 +8,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,8 +22,10 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,9 +35,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlin.math.pow
+import com.example.a2048.ui.theme.Gray40
 
 class MainActivity : ComponentActivity() {
     private val viewModel by viewModels<CellViewModel>()
@@ -52,10 +51,14 @@ class MainActivity : ComponentActivity() {
     }
 
 
+
     @Composable
     private fun MainScreen() {
-        val minSwipe = (getMeanDp() / 40).dp
+        val minSwipe = (getMeanDp() / 60).dp
         var swipeAvailable by remember { mutableStateOf(true) }
+        val score = remember {
+            mutableStateOf(0)
+        }
         Column(
             modifier = Modifier
                 .pointerInput(Unit) {
@@ -64,18 +67,22 @@ class MainActivity : ComponentActivity() {
                             change.consume()
                             val dragAmountDpX = dragAmount.x.toDp()
                             val dragAmountDpY = dragAmount.y.toDp()
-                            if (dragAmountDpX > minSwipe) {
+                            if (dragAmountDpX > minSwipe && swipeAvailable) {
                                 swipeAvailable = false
-                                swipe(Swipe.RIGHT)
-                            } else if (dragAmountDpX < -minSwipe) {
+                                swipeRight(score)
+                                viewModel.generateCell()
+                            } else if (dragAmountDpX < -minSwipe && swipeAvailable) {
                                 swipeAvailable = false
-                                swipe(Swipe.LEFT)
-                            } else if (dragAmountDpY > minSwipe) {
+                                swipeLeft(score)
+                                viewModel.generateCell()
+                            } else if (dragAmountDpY > minSwipe && swipeAvailable) {
                                 swipeAvailable = false
-                                swipe(Swipe.DOWN)
-                            } else if (dragAmountDpY < -minSwipe) {
+                                swipeDown(score)
+                                viewModel.generateCell()
+                            } else if (dragAmountDpY < -minSwipe && swipeAvailable) {
                                 swipeAvailable = false
-                                swipe(Swipe.UP)
+                                swipeUp(score)
+                                viewModel.generateCell()
                             }
                         }
                     }
@@ -92,9 +99,10 @@ class MainActivity : ComponentActivity() {
             ) {
                 Grid()
             }
+            Text(text = "Current score: ${score.value}")
         }
-        LaunchedEffect(!swipeAvailable){
-            delay(10000)
+        LaunchedEffect(!swipeAvailable) {
+            delay(300)
             swipeAvailable = true
         }
     }
@@ -118,7 +126,7 @@ class MainActivity : ComponentActivity() {
                         .height((getScreenWidth() * 0.95 / viewModel.sideLength).dp)
                         .padding((getMeanDp() / 130).dp)
                         .background(
-                            color = Color.Red,
+                            color = Gray40,
                             shape = shape
                         )
                         .clipToBounds()
@@ -142,17 +150,70 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun swipe(swipe: Swipe) {
-        when (swipe) {
-            Swipe.DOWN -> Toast.makeText(this, "Down", Toast.LENGTH_SHORT).show()
-            Swipe.UP -> Toast.makeText(this, "Up", Toast.LENGTH_SHORT).show()
-            Swipe.LEFT -> Toast.makeText(this, "Left", Toast.LENGTH_SHORT).show()
-            Swipe.RIGHT -> Toast.makeText(this, "Right", Toast.LENGTH_SHORT).show()
-        }
-        viewModel.generateCell()
-    }
-}
 
-enum class Swipe {
-    UP, DOWN, LEFT, RIGHT
+    private fun swipeUp(score: MutableState<Int>) {
+        val side = viewModel.sideLength
+        val cells = side.toFloat().pow(2).toInt()
+        for (i in side until cells) {
+            if (viewModel.cells[i - side] == null) {
+                viewModel.cells[i - side] = viewModel.cells[i]
+                viewModel.cells[i] = null
+            } else if (viewModel.cells[i - side] == viewModel.cells[i]) {
+                score.value += viewModel.cells[i]?.value ?: 0
+                viewModel.cells[i - side]?.value = viewModel.cells[i - side]?.value!! * 2
+                viewModel.cells[i] = null
+            }
+        }
+    }
+
+    private fun swipeRight(score: MutableState<Int>) {
+        val side = viewModel.sideLength
+        var index = 0
+        repeat(side - 1) {
+            for (i in index until side + index) {
+                if (viewModel.cells[i + 1] == null) {
+                    viewModel.cells[i + 1] = viewModel.cells[i]
+                    viewModel.cells[i] = null
+                } else if (viewModel.cells[i + 1] == viewModel.cells[i]) {
+                    score.value += viewModel.cells[i]?.value ?: 0
+                    viewModel.cells[i + 1]?.value = viewModel.cells[i + 1]?.value!! * 2
+                    viewModel.cells[i] = null
+                }
+            }
+            index += side
+        }
+    }
+
+    private fun swipeLeft(score: MutableState<Int>) {
+        val side = viewModel.sideLength
+        var index = 0
+        repeat(side) {
+            for (i in side + index - 1 downTo index + 1) {
+                if (viewModel.cells[i - 1] == null) {
+                    viewModel.cells[i - 1] = viewModel.cells[i]
+                    viewModel.cells[i] = null
+                } else if (viewModel.cells[i - 1] == viewModel.cells[i]) {
+                    score.value += viewModel.cells[i]?.value ?: 0
+                    viewModel.cells[i - 1]?.value = viewModel.cells[i - 1]?.value!! * 2
+                    viewModel.cells[i] = null
+                }
+            }
+            index += side
+        }
+    }
+
+    private fun swipeDown(score: MutableState<Int>) {
+        val side = viewModel.sideLength
+        val cells = side.toFloat().pow(2).toInt()
+        for (i in 0 until cells - side) {
+            if (viewModel.cells[i + side] == null) {
+                viewModel.cells[i + side] = viewModel.cells[i]
+                viewModel.cells[i] = null
+            } else if (viewModel.cells[i + side] == viewModel.cells[i]) {
+                score.value += viewModel.cells[i]?.value ?: 0
+                viewModel.cells[i + side]?.value = viewModel.cells[i + side]?.value!! * 2
+                viewModel.cells[i] = null
+            }
+        }
+    }
 }

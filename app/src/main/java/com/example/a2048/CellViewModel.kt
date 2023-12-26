@@ -13,7 +13,6 @@ class CellViewModel : ViewModel() {
 
     val cells =
         List<FilledCell?>((sideLength.toFloat().pow(2)).toInt()) { null }.toMutableStateList()
-    var strings by mutableStateOf(mutableListOf("0"))
 
 
     fun generateCell() {
@@ -24,9 +23,4 @@ class CellViewModel : ViewModel() {
         }
     }
 
-    fun generateValue(a: String) {
-        val value = this.strings
-        value.add(a)
-        this.strings = value
-    }
 }
